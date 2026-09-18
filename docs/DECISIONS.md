@@ -5,6 +5,8 @@
 
 Status 값: `Accepted` / `Proposed` / `Superseded by ADR-xxx` / `Deprecated`
 
+> **읽는 사람(사람이든 에이전트든)에게:** 이 파일은 append-only라 **틀린 것으로 판명된 ADR도 남아 있다.** 어떤 ADR을 근거로 쓰기 전에 반드시 그 ADR의 **Status를 먼저 확인**한다. `SUPERSEDED`로 표시된 ADR의 본문은 역사적 기록일 뿐이며 구현 근거가 아니다. 현재 superseded: **ADR-014 → ADR-016**.
+
 ---
 
 ## ADR-001 Assistant foundation: VoiceInteractionService
@@ -322,52 +324,54 @@ Porcupine(Wake Word)은 항상 PCM을 받는다. 마이크 자체는 IDLE에도 
 
 ---
 
-## ADR-014 VoiceInteractionSessionService process separation — not adopted in the Spike
+## ADR-014 VoiceInteractionSessionService process separation — SUPERSEDED, DO NOT IMPLEMENT
 
-**Status:** ~~Accepted (2026-09-18)~~ **Superseded by ADR-016 (2026-09-18)**
+**Status:** **SUPERSEDED by [ADR-016](#adr-016-세션-프로세스-분리는-공식-권장-spike에서만-한시적으로-단일-프로세스) (2026-09-18). Historical record only.**
 
-> ⚠️ **이 ADR의 조사 결과는 사실과 다르다.** "공식 문서가 별도 프로세스를 요구·권장하지 않는다"는 판단은 **틀렸다**. `VoiceInteractionService` 공식 레퍼런스가 명시적으로 별도 프로세스를 권장한다. [ADR-016](#adr-016-세션-프로세스-분리는-공식-권장-spike에서만-한시적으로-단일-프로세스)을 볼 것. 결론(Spike는 단일 프로세스)만 유지되고, 근거는 전부 교체되었다.
+```text
+DO NOT IMPLEMENT THIS ADR.
+The investigation behind it was incorrect.
+Its central claim — "official Android documentation does not recommend a
+separate process for VoiceInteractionSessionService" — is FALSE.
+The official VoiceInteractionService reference recommends exactly that.
+Use ADR-016 instead.
+```
+
+무엇이 유지되고 무엇이 폐기되었는가:
+
+| | |
+|---|---|
+| 유지 | **Spike는 단일 프로세스**라는 결론. 단, 근거는 "공식 권장이 없어서"가 아니라 "공유 `DebugLog`를 위한 한시적 예외"다 |
+| 폐기 | 근거 전부. "공식 문서에 권장 없음", "v0.1도 단일 프로세스", "(a)/(b) 관측 시에만 재검토" 조건 |
+
+정확한 내용은 [ADR-016](#adr-016-세션-프로세스-분리는-공식-권장-spike에서만-한시적으로-단일-프로세스)에 있다. v0.1은 `android:process=":session"`으로 **분리한다**.
+
+<details>
+<summary>원문 보존 (틀린 주장 포함 — 인용하지 말 것)</summary>
+
+> 아래는 2026-09-18 최초 작성분이다. **틀린 문장에는 ❌를 붙였다.** 이 블록의 어떤 문장도 구현·인용 근거로 쓰지 않는다.
 
 **Context:**
 `VoiceInteractionService`(VIS)는 어시스턴트 역할을 가진 동안 시스템이 상시 바인딩한다. 따라서 가능한 한 가볍게 유지해야 한다는 요구가 있다. 흔히 제안되는 방법은 세션/UI 쪽을 별도 프로세스로 빼는 것이다.
 
-```xml
-<service android:name=".assistant.GptVoiceInteractionSessionService"
-         android:process=":session" />
-```
+**조사 결과 (이 표 전체가 틀렸다):**
 
-**조사 결과 (공식 근거):**
-
-| 항목 | 태그 | 내용 |
+| 항목 | 원래 태그 | 판정 |
 |---|---|---|
-| Android 공식 문서가 `VoiceInteractionSessionService`의 별도 프로세스를 **요구**하는가 | `CONFIRMED (요구하지 않음)` | `android.service.voice` 패키지 문서와 AOSP Voice Interaction 가이드 어디에도 `android:process` 요구·권장이 없다. VIS·VSS·Session은 같은 프로세스를 전제로 설명된다 |
-| AOSP 참조 구현이 프로세스를 나누는가 | `CONFIRMED (나누지 않음)` | AOSP `development/samples/VoiceInteraction` 샘플은 VIS/VSS/Session을 단일 프로세스에 둔다 |
-| 별도 프로세스가 One UI에서 VIS 생존성을 **개선**하는가 | `DEVICE_TEST_REQUIRED` | 근거 없음. Samsung sleeping 정책은 패키지 단위로 보이며(R-07), 프로세스를 나눈다고 완화된다는 공식 근거가 없다 |
-| 별도 프로세스가 VIS 프로세스의 메모리 압력을 줄이는가 | `CONFIRMED (일반론)` / 효과 크기는 `DEVICE_TEST_REQUIRED` | Compose/UI 클래스가 VIS 프로세스에 로드되지 않는다 |
+| Android 공식 문서가 별도 프로세스를 **요구**하는가 | ~~`CONFIRMED (요구하지 않음)`~~ | ❌ **WRONG.** 공식 레퍼런스가 "that service should run in a separate process from this one"이라고 명시한다 |
+| AOSP 참조 구현이 프로세스를 나누는가 | ~~`CONFIRMED (나누지 않음)`~~ | ❌ 샘플이 나누지 않는다는 사실은 권장의 부재를 뜻하지 않는다. 논증 자체가 무효 |
+| 별도 프로세스가 One UI에서 VIS 생존성을 개선하는가 | ~~`DEVICE_TEST_REQUIRED`~~ | ⚠️ 이 항목만 유효. 단, 분리 여부의 **전제 조건이 아니다** — 공식 권장이므로 관측과 무관하게 분리한다 |
+| 별도 프로세스가 VIS 메모리 압력을 줄이는가 | `CONFIRMED (일반론)` | ✅ 유효 |
 
-**Decision:**
-**Technical Spike와 v0.1에서는 `android:process`를 쓰지 않는다(단일 프로세스).** 이유:
+**원래의 Decision:** ❌ "Technical Spike와 v0.1에서는 `android:process`를 쓰지 않는다(단일 프로세스)." — v0.1 부분이 틀렸다.
 
-1. 공식 문서·AOSP 샘플이 단일 프로세스를 전제로 하고, 분리를 요구하지도 권장하지도 않는다.
-2. 분리하면 `DebugLog`(인메모리 ring buffer), `AudioCaptureService` 상태, Bridge 상태가 **프로세스 경계로 쪼개진다**. Spike의 목적이 "한 화면에서 S-1/S-2/S-3 로그를 본다"이므로 이는 직접적인 손해다. 분리하려면 IPC(예: `Messenger`/bound service)로 로그를 합쳐야 하고, 그 코드는 Spike가 검증하려는 가설과 무관하다.
-3. 분리의 **이득이 측정되지 않았다**. 근거 없이 구조를 나누면 ADR-012(evidence tagging) 위반이다.
+**원래의 재검토 조건:** ❌ "GV-07에서 (a) LMK/OOM 재생성 또는 (b) RSS 증가 후 FGS 사망이 관측되면 분리를 도입한다." — **폐기**. 공식 권장은 관측을 기다릴 사안이 아니다.
 
-**재검토 조건 (측정 가능하게):**
-GV-07(72h 생존)에서 다음 중 하나가 관측되면 ADR-014를 Superseded로 바꾸고 분리를 도입한다.
+**유효했던 부분:** `AudioCaptureService`를 별도 프로세스로 빼는 것은 기각. 마이크 소유 컴포넌트를 VIS에서 떼면 while-in-use 예외 적용이 불투명해진다. 이 판단은 ADR-016에도 그대로 옮겼다.
 
-```text
-(a) VIS 프로세스가 LMK/OOM으로 재생성되는 로그가 반복 관측
-    (adb shell dumpsys activity processes | grep <pkg>, logcat lowmemorykiller)
-(b) 세션 UI를 띄운 뒤 VIS 프로세스 RSS가 유의하게 증가하고 그 상태에서 FGS 사망이 관측
-```
+**이 ADR이 남긴 교훈:** "공식 문서에 없다"는 **문서를 끝까지 읽었을 때만** 할 수 있는 주장이다. 근거 부재를 근거로 쓴 것은 ADR-012 위반이다.
 
-**Alternatives:**
-- 지금 바로 `:session` 적용: 근거 없음 + Spike 진단 손해. 기각.
-- VSS만이 아니라 `AudioCaptureService`를 별도 프로세스로: 마이크 소유 컴포넌트를 VIS에서 떼면 while-in-use 마이크 예외(VIS가 시작한 FGS)의 적용 여부가 불투명해진다. **위험이 더 크다.** 기각.
-
-**Consequences:** Spike APK는 단일 프로세스다. 분리 여부는 실기기 데이터로만 뒤집는다.
-
-**Validation:** GV-07. 위 (a)/(b) 관측 여부.
+</details>
 
 ---
 
