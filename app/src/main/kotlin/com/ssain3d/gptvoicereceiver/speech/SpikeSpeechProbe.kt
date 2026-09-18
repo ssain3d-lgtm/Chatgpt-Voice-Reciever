@@ -1,5 +1,6 @@
 package com.ssain3d.gptvoicereceiver.speech
 
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.media.AudioFormat
@@ -43,6 +44,8 @@ class SpikeSpeechProbe(private val context: Context) {
     data class Snapshot(
         val mode: SpeechMode = SpeechMode.MODE_P_PIPE,
         val running: Boolean = false,
+        /** Which recognizer this run was measured against. null = system default. */
+        val recognizer: ComponentName? = null,
         val partial: String = "",
         val finalText: String = "",
         val segments: List<String> = emptyList(),
@@ -60,6 +63,7 @@ class SpikeSpeechProbe(private val context: Context) {
     private val gate = TurnGate()
 
     private var recognizer: SpeechRecognizer? = null
+    private var recognizerComponent: ComponentName? = null
     private var turnId: TurnId = TurnId.NONE
     private var startedAtMs: Long = 0
     private var partialCount = 0
@@ -81,7 +85,14 @@ class SpikeSpeechProbe(private val context: Context) {
 
     // ------------------------------------------------------------------- lifecycle
 
-    fun start(mode: SpeechMode) {
+    /**
+     * @param component pin the run to this recognizer, or null to use the system
+     *        default. Pinning exists because AURA's own RecognitionService stub can
+     *        become the system default once AURA is the assistant — see
+     *        [RecognizerInfo]. Measuring against it would answer a question nobody
+     *        asked.
+     */
+    fun start(mode: SpeechMode, component: ComponentName? = null) {
         if (snapshot.running) {
             Spike.log.log(SpikeId.S2, "Probe", "StartIgnored", EventResult.WARN, detail = "already running")
             return
@@ -91,12 +102,44 @@ class SpikeSpeechProbe(private val context: Context) {
         gate.open(turnId)
         partialCount = 0
         startedAtMs = SystemClock.elapsedRealtime()
-        snapshot = Snapshot(mode = mode, running = true, modePVerdict = snapshot.modePVerdict)
+        recognizerComponent = component
+        snapshot = Snapshot(
+            mode = mode,
+            running = true,
+            recognizer = component,
+            modePVerdict = snapshot.modePVerdict,
+        )
         publish()
+
+        // Refuse to measure our own stub, whether it was chosen explicitly or is
+        // simply the current system default. A Mode P failure against it would look
+        // exactly like "the Galaxy recognizer ignores EXTRA_AUDIO_SOURCE" (GV-09),
+        // and that wrong answer would be acted on.
+        val ourPackage = context.packageName
+        if (component != null && component.packageName == ourPackage) {
+            failFast(
+                "refusing to run against ${component.flattenToShortString()} — that is " +
+                    "AURA's own RecognitionService stub, which always returns ERROR_CLIENT"
+            )
+            return
+        }
+        if (component == null) {
+            val info = RecognizerInfo.read(context)
+            if (info.defaultIsOurStub) {
+                failFast(
+                    "the system default recognizer is AURA's own stub " +
+                        "(${info.defaultRaw}). Pin an external recognizer on this " +
+                        "screen before running S-2 — otherwise Mode P/H would be " +
+                        "measuring our deliberate ERROR_CLIENT, not the Galaxy provider."
+                )
+                return
+            }
+        }
 
         Spike.log.log(
             SpikeId.S2, "Probe", "Start", EventResult.INFO, turnId = turnId,
-            detail = "mode=$mode captureAlive=${AudioCaptureService.isAlive()}",
+            detail = "mode=$mode captureAlive=${AudioCaptureService.isAlive()} " +
+                "recognizer=${component?.flattenToShortString() ?: "system default"}",
         )
 
         when (mode) {
@@ -151,7 +194,7 @@ class SpikeSpeechProbe(private val context: Context) {
         }
 
         mark("Mode P: pipe created, extras set")
-        createRecognizer(onDevice = false)
+        createRecognizer()
 
         val ok = runCatching { recognizer?.startListening(intent) }
         if (ok.isFailure) {
@@ -233,7 +276,7 @@ class SpikeSpeechProbe(private val context: Context) {
             WakeFeedback.beep()
             mark("cue tone — speak after this")
 
-            createRecognizer(onDevice = false)
+            createRecognizer()
             val ok = runCatching { recognizer?.startListening(baseIntent()) }
             if (ok.isFailure) {
                 failFast("startListening threw: ${ok.exceptionOrNull()}")
@@ -254,12 +297,14 @@ class SpikeSpeechProbe(private val context: Context) {
         putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
     }
 
-    private fun createRecognizer(onDevice: Boolean) {
+    private fun createRecognizer() {
         runCatching { recognizer?.destroy() }
-        recognizer = if (onDevice) {
-            SpeechRecognizer.createOnDeviceSpeechRecognizer(context)
-        } else {
+        val component = recognizerComponent
+        recognizer = if (component == null) {
             SpeechRecognizer.createSpeechRecognizer(context)
+        } else {
+            // createSpeechRecognizer(Context, ComponentName) — API 8, public.
+            SpeechRecognizer.createSpeechRecognizer(context, component)
         }
         recognizer?.setRecognitionListener(Listener(turnId))
     }
@@ -393,7 +438,9 @@ class SpikeSpeechProbe(private val context: Context) {
         snapshot = snapshot.copy(running = false)
         Spike.log.log(
             SpikeId.S2, "Probe", "Finish", EventResult.INFO, turnId = forTurn,
-            detail = "reason=$reason pipeBytes=${snapshot.pipeBytesWritten} " +
+            detail = "reason=$reason recognizer=" +
+                "${snapshot.recognizer?.flattenToShortString() ?: "system default"} " +
+                "pipeBytes=${snapshot.pipeBytesWritten} " +
                 "dropped=${snapshot.pipeFramesDropped} stale=${gate.staleCount}",
         )
         publish()

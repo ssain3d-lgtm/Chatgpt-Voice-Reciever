@@ -176,6 +176,10 @@ adb shell settings get secure voice_recognition_service
 
 **provider 컴포넌트명을 반드시 기록한다.** Mode P 지원 여부는 Android가 아니라 이 provider의 성질이므로, provider 없는 결과는 재현 불가능하다.
 
+> ⚠️ **자기 stub 오인 함정.** AURA는 어시스턴트 목록에 뜨기 위해 `GptRecognitionService` stub을 선언하며, 이 stub은 호출되면 설계상 즉시 `ERROR_CLIENT`를 반환한다. AURA를 기본 어시스턴트로 지정한 뒤 `voice_recognition_service`가 이 stub으로 바뀌면, S-2는 Galaxy STT가 아니라 **우리 자신의 실패**를 측정하게 되고 "Galaxy가 `EXTRA_AUDIO_SOURCE`를 지원하지 않는다"는 **완전히 잘못된 결론**이 나온다.
+>
+> 앱이 이를 감지해 provider가 우리 패키지면 화면에 빨간 경고를 띄우고 외부 recognizer를 자동으로 pin한다(`createSpeechRecognizer(Context, ComponentName)`). 그래도 실행 전에 **`Recognizer:` 버튼의 값이 우리 패키지가 아닌지 눈으로 확인**하고, 그 값을 GV-08/09/10 결과에 함께 적는다. pin되지 않은 상태에서 나온 실패는 `INCONCLUSIVE`다.
+
 #### E-2. Mode P — **GV-09**
 
 1. S-1에서 캡처가 돌고 있어야 한다.
