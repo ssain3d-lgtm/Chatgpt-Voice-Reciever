@@ -32,6 +32,8 @@
 | 잠금 화면 위 세션 표시 | `DEVICE_TEST_REQUIRED` | VIS 메타데이터 `supportsLaunchVoiceAssistFromKeyguard`. 세션 UI 표시 가능성은 있으나 One UI 동작 검증 필요. GV-04 |
 | 잠금 상태에서 `startAssistantActivity` | `DEVICE_TEST_REQUIRED` | 잠금 해제 화면이 뜰 것으로 예상. 정책: 잠금 중이면 큐잉 후 해제 시 전송 |
 | `showSession()` 호출 주체 | `CONFIRMED` | VIS에서 `showSession(args, flags)`. 세션 UI는 이 경로로만 표시 |
+| `VoiceInteractionSessionService`의 별도 프로세스(`android:process=":session"`) 요구 | `CONFIRMED (요구하지 않음)` | `android.service.voice` 공식 문서와 AOSP Voice Interaction 가이드에 `android:process` 요구·권장 없음. AOSP `development/samples/VoiceInteraction` 샘플도 단일 프로세스 |
+| 별도 프로세스가 One UI에서 VIS 생존성을 개선하는가 | `DEVICE_TEST_REQUIRED` | 공식 근거 없음. Spike·v0.1은 단일 프로세스 유지([DECISIONS.md](DECISIONS.md) ADR-014). 재검토 조건은 ADR-014에 측정 가능하게 기재 |
 
 ## 3. ROLE_ASSISTANT
 

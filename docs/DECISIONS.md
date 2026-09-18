@@ -286,3 +286,125 @@ API 존재를 근거로 실기기 동작을 확정하거나, 커뮤니티 보고
 - 불확실하면 `DEVICE_TEST_REQUIRED`로 낮춘다.
 
 **Consequences:** [ANDROID_CONSTRAINTS.md](ANDROID_CONSTRAINTS.md) 전체가 이 정책을 따른다.
+
+---
+
+## ADR-013 Endpoint VAD is activated by Wake, not run in IDLE
+
+**Status:** Accepted (2026-09-18)
+
+**Context:**
+[ARCHITECTURE.md](ARCHITECTURE.md) §1/§2/§4.2는 RingBuffer 소비자로 `WakeWordEngine`, `VadEngine`, Speech pipeline을 나란히 그렸고, [SECURITY_PRIVACY.md](SECURITY_PRIVACY.md) §2도 IDLE PCM이 `VadEngine`에 전달되는 것처럼 읽혔다. 반면 [RISK_REGISTER.md](RISK_REGISTER.md) R-03 Mitigation은 "VAD는 Wake 이후에만 활성(초기 정책)"이라고 적었다. **같은 저장소 안에서 서로 다르게 읽힌다.**
+
+기술적으로도 IDLE VAD는 소비자가 없다. `VadEvent`의 유일한 소비자는 `EndpointDetector`이고, `EndpointDetector`는 `reset(turnId)` 이후에만 의미가 있다. IDLE에는 turn이 없다.
+
+**Decision:**
+v0.1과 Technical Spike에서 **Endpoint용 VAD는 IDLE에서 돌리지 않는다.**
+
+```text
+IDLE           : AudioRecord active · WakeWordEngine active · Endpoint VAD INACTIVE · SpeechEngine INACTIVE
+Wake detected  : ARMED/LISTENING → Endpoint VAD ACTIVE · SpeechEngine ACTIVE
+turn 종료       : Endpoint VAD INACTIVE · SpeechEngine INACTIVE
+```
+
+Porcupine(Wake Word)은 항상 PCM을 받는다. 마이크 자체는 IDLE에도 열려 있다(DSP 경로 없음, ADR-003).
+
+**Alternatives:**
+- IDLE에서도 VAD 상시 구동: 소비자 없음, 배터리만 소모. 기각.
+- Wake Word를 VAD로 게이팅(VAD가 speech를 감지할 때만 Porcupine 실행): 2단계 게이팅은 전력 이득이 있을 수 있으나 첫 음절 손실·추가 지연·튜닝 부담이 생기고, Porcupine 자체가 경량이다. v0.1 범위 밖. `OPEN_QUESTION`.
+
+**Consequences:**
+- [ARCHITECTURE.md](ARCHITECTURE.md) §4.5가 이 정책의 authoritative 위치다. INV-7 문구도 이에 맞춰 갱신했다.
+- 상시 추론이 Porcupine 하나로 줄어 R-03(배터리) 측정 대상이 단순해진다.
+- Spike S-1은 "IDLE에 VAD 없이도 Wake가 동작하는가"만 보면 된다.
+
+**Validation:** GV-06(배터리). Spike S-1.
+
+---
+
+## ADR-014 VoiceInteractionSessionService process separation — not adopted in the Spike
+
+**Status:** Accepted (2026-09-18) — 결론은 `DEVICE_TEST_REQUIRED`
+
+**Context:**
+`VoiceInteractionService`(VIS)는 어시스턴트 역할을 가진 동안 시스템이 상시 바인딩한다. 따라서 가능한 한 가볍게 유지해야 한다는 요구가 있다. 흔히 제안되는 방법은 세션/UI 쪽을 별도 프로세스로 빼는 것이다.
+
+```xml
+<service android:name=".assistant.GptVoiceInteractionSessionService"
+         android:process=":session" />
+```
+
+**조사 결과 (공식 근거):**
+
+| 항목 | 태그 | 내용 |
+|---|---|---|
+| Android 공식 문서가 `VoiceInteractionSessionService`의 별도 프로세스를 **요구**하는가 | `CONFIRMED (요구하지 않음)` | `android.service.voice` 패키지 문서와 AOSP Voice Interaction 가이드 어디에도 `android:process` 요구·권장이 없다. VIS·VSS·Session은 같은 프로세스를 전제로 설명된다 |
+| AOSP 참조 구현이 프로세스를 나누는가 | `CONFIRMED (나누지 않음)` | AOSP `development/samples/VoiceInteraction` 샘플은 VIS/VSS/Session을 단일 프로세스에 둔다 |
+| 별도 프로세스가 One UI에서 VIS 생존성을 **개선**하는가 | `DEVICE_TEST_REQUIRED` | 근거 없음. Samsung sleeping 정책은 패키지 단위로 보이며(R-07), 프로세스를 나눈다고 완화된다는 공식 근거가 없다 |
+| 별도 프로세스가 VIS 프로세스의 메모리 압력을 줄이는가 | `CONFIRMED (일반론)` / 효과 크기는 `DEVICE_TEST_REQUIRED` | Compose/UI 클래스가 VIS 프로세스에 로드되지 않는다 |
+
+**Decision:**
+**Technical Spike와 v0.1에서는 `android:process`를 쓰지 않는다(단일 프로세스).** 이유:
+
+1. 공식 문서·AOSP 샘플이 단일 프로세스를 전제로 하고, 분리를 요구하지도 권장하지도 않는다.
+2. 분리하면 `DebugLog`(인메모리 ring buffer), `AudioCaptureService` 상태, Bridge 상태가 **프로세스 경계로 쪼개진다**. Spike의 목적이 "한 화면에서 S-1/S-2/S-3 로그를 본다"이므로 이는 직접적인 손해다. 분리하려면 IPC(예: `Messenger`/bound service)로 로그를 합쳐야 하고, 그 코드는 Spike가 검증하려는 가설과 무관하다.
+3. 분리의 **이득이 측정되지 않았다**. 근거 없이 구조를 나누면 ADR-012(evidence tagging) 위반이다.
+
+**재검토 조건 (측정 가능하게):**
+GV-07(72h 생존)에서 다음 중 하나가 관측되면 ADR-014를 Superseded로 바꾸고 분리를 도입한다.
+
+```text
+(a) VIS 프로세스가 LMK/OOM으로 재생성되는 로그가 반복 관측
+    (adb shell dumpsys activity processes | grep <pkg>, logcat lowmemorykiller)
+(b) 세션 UI를 띄운 뒤 VIS 프로세스 RSS가 유의하게 증가하고 그 상태에서 FGS 사망이 관측
+```
+
+**Alternatives:**
+- 지금 바로 `:session` 적용: 근거 없음 + Spike 진단 손해. 기각.
+- VSS만이 아니라 `AudioCaptureService`를 별도 프로세스로: 마이크 소유 컴포넌트를 VIS에서 떼면 while-in-use 마이크 예외(VIS가 시작한 FGS)의 적용 여부가 불투명해진다. **위험이 더 크다.** 기각.
+
+**Consequences:** Spike APK는 단일 프로세스다. 분리 여부는 실기기 데이터로만 뒤집는다.
+
+**Validation:** GV-07. 위 (a)/(b) 관측 여부.
+
+---
+
+## ADR-015 ChatGPT App Bridge Go / No-Go rule
+
+**Status:** Accepted (2026-09-18)
+
+**Context:**
+제품 목표는 **fully hands-free**다. "질문이 ChatGPT 앱에 들어갔다"가 아니라 "사용자가 화면을 만지지 않고 전송까지 끝났다"가 성공이다. Spike S-3이 실패했을 때 무엇을 하고 무엇을 하지 않을지가 [MVP_PLAN.md](MVP_PLAN.md)에 "Plan B 기본화 / Plan A 폐기 검토"로만 적혀 있어, **자동 Send 가능 여부**라는 결정적 분기가 명시되지 않았다.
+
+**Decision:**
+S-3 결과에 따른 분기를 아래로 고정한다. 판정 기준의 상세는 [CHATGPT_BRIDGE.md](CHATGPT_BRIDGE.md) §10.
+
+```text
+S-3 Accessibility 성공
+  → Official ChatGPT App Bridge(Plan A) 방식으로 v0.1 계속 진행
+
+S-3 Accessibility 실패
+  → Plan B Share Intent 테스트를 수행한다 (건너뛰지 않는다)
+
+Plan B가 자동 Send까지 가능
+  → degraded bridge로 v0.1 계속 가능 (같은 대화 유지는 포기, hands-free는 유지)
+
+Plan B도 사용자 탭을 요구
+  → 원래 제품 목표인 fully hands-free ChatGPT App Bridge = NO-GO
+```
+
+**NO-GO일 때 하지 않을 것:**
+- 전체 v0.1을 그대로 구현하지 않는다.
+- 임의로 OpenAI API 버전으로 전환하지 않는다. 그것은 [PRODUCT_SPEC.md](PRODUCT_SPEC.md) §1의 "공식 앱, 기존 대화" 요구를 바꾸는 **제품 결정**이며, 사용자가 선택한다.
+
+**NO-GO일 때 할 것:** 결과를 보고하고 아래 세 선택지를 제시한다.
+
+| 선택지 | 내용 | 무엇을 포기하는가 |
+|---|---|---|
+| 1. OpenAI API Bridge | `OpenAiApiBridge` 구현, 자체 최소 답변 표시 | 공식 앱 UI·기존 대화·구독 UI |
+| 2. 공식 integration 대기 | Bridge 외 파이프라인(S-1/S-2)만 v0.1로 완성, `FutureOfficialChatGptBridge` 자리만 유지 | 지금 당장의 종단 UX |
+| 3. 반자동 degraded mode | 자동 입력까지만. Send는 사용자 탭 1회 | fully hands-free |
+
+**Consequences:** S-3이 NO-GO면 Phase 2(v0.1 구현)는 **사용자 결정 전까지 시작하지 않는다**.
+
+**Validation:** GV-11, GV-12, GV-13, GV-21. Spike S-3.

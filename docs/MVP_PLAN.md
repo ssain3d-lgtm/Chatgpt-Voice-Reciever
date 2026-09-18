@@ -29,7 +29,7 @@ Phase 4  v0.2 (experimental 항목)
 |---|---|---|---|---|
 | S-1 | `VoiceInteractionService` + 화면 OFF Wake feasibility | Assistant 등록 성공, FGS 마이크가 화면 OFF에서 무음이 아님, Porcupine "헤이 지피티" 감지 | GV-01, GV-02, GV-03 | 아키텍처 재검토 (제품 성립 불가) |
 | S-2 | `AudioRecord` → `SpeechRecognizer` pipeline feasibility | Mode P(`EXTRA_AUDIO_SOURCE`) 지원 여부 확정, 미지원 시 Mode H에서 첫 음절 손실 정도 측정 | GV-08, GV-09, GV-10 | Mode H 고정, pre-roll 설계 축소 |
-| S-3 | 공식 ChatGPT 앱 Accessibility injection/send feasibility | composer editable 노드 발견, `ACTION_SET_TEXT` 반영, Send `ACTION_CLICK` 후 composer 비움 | GV-11, GV-12, GV-13, GV-21 | Plan B 기본화, Plan A 폐기 검토 |
+| S-3 | 공식 ChatGPT 앱 Accessibility injection/send feasibility | composer editable 노드 발견, `ACTION_SET_TEXT` 반영, Send `ACTION_CLICK` 후 composer 비움 | GV-11, GV-12, GV-13, GV-21 | **Go/No-Go 규칙: [CHATGPT_BRIDGE.md](CHATGPT_BRIDGE.md) §10 / ADR-015.** Plan B도 자동 Send 불가면 `NO-GO` — Phase 2를 시작하지 않고 사용자 결정을 받는다 |
 
 Spike 산출물: 각 GV 항목의 Result 기록 + [ANDROID_CONSTRAINTS.md](ANDROID_CONSTRAINTS.md) 태그 갱신 + [RISK_REGISTER.md](RISK_REGISTER.md) 상태 갱신.
 

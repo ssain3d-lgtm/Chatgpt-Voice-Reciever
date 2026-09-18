@@ -23,7 +23,7 @@ P-7  User is told what the platform shows.        (privacy indicator는 숨길 �
 
 ## 2. Wake Audio — 로컬 처리
 
-- `AudioCaptureService`의 PCM은 `WakeWordEngine`(Porcupine, 온디바이스 추론)과 `VadEngine`(온디바이스)에만 전달된다.
+- IDLE 상태에서 `AudioCaptureService`의 PCM은 `WakeWordEngine`(Porcupine, 온디바이스 추론)에**만** 전달된다. Endpoint용 `VadEngine`은 Wake 이후에만 활성화된다([ARCHITECTURE.md](ARCHITECTURE.md) §4.5). Wake 이후에는 PCM이 `VadEngine`(온디바이스)과 `SpeechEngine`에도 전달된다.
 - IDLE 상태에서 네트워크 소켓을 여는 코드는 오디오 경로에 존재하지 않는다. (Porcupine AccessKey 검증은 SDK 초기화 시 온라인 확인이 필요할 수 있다 — Picovoice 공식 문서 기준으로 구현 시 확인. `OPEN_QUESTION`: 오프라인 유예 기간)
 - Wake Word 감지 결과(키워드 인덱스, 시각)만 이벤트로 나간다. 오디오는 나가지 않는다.
 

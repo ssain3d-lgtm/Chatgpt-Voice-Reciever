@@ -64,6 +64,7 @@ if silenceMs >= min(threshold, hardCap):  → Possible
 ### 3.1 Layer 0 — VAD
 
 - 엔진: Silero VAD (ONNX) 또는 WebRTC VAD. `VadEngine` 인터페이스 뒤.
+- **활성 시점: Wake 이후에만.** IDLE에서는 돌리지 않는다([ARCHITECTURE.md](ARCHITECTURE.md) §4.5, [DECISIONS.md](DECISIONS.md) ADR-013).
 - 프레임: 30 ms (초기값). 출력: `SpeechOnset`, `SpeechEnd`, `SilenceTick(silenceMs)`(100 ms 간격).
 - 왜 `SpeechRecognizer`의 `onRmsChanged`를 쓰지 않는가: RMS만 주고 무음 길이를 주지 않는다. 자체 VAD가 있어야 무음 ms를 정확히 재고, recognizer가 세션을 먼저 끊어도 우리 판단을 유지하며, Windows에서 같은 로직을 재사용한다.
 

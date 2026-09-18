@@ -36,9 +36,9 @@ AudioCaptureService  (FGS type=microphone)
 single AudioRecord  (16 kHz / mono / VOICE_RECOGNITION)
         ↓
 RingBuffer (+ pre-roll)
-        ├── WakeWordEngine      → WakeWordEvent
-        ├── VadEngine           → VadEvent
-        └── Speech pipeline     → SpeechEvent (partial / segment / final)
+        ├── WakeWordEngine      → WakeWordEvent      [ALWAYS ACTIVE]
+        ├── VadEngine           → VadEvent           [ACTIVE ONLY AFTER WAKE — §4.5]
+        └── Speech pipeline     → SpeechEvent        [ACTIVE ONLY AFTER WAKE — §4.5]
                                        ↓
                        EndpointDetector (pure Kotlin)
                                        ↓ EndpointEvent
@@ -96,9 +96,9 @@ flowchart TB
 
     RM --> VIMS --> VIS
     VIS --> FGS
-    FGS -- PCM frames --> WW
-    FGS -- PCM frames --> VAD
-    FGS -- PCM pipe --> STT
+    FGS -- "PCM frames (always)" --> WW
+    FGS -- "PCM frames (after wake only)" --> VAD
+    FGS -- "PCM pipe (after wake only)" --> STT
     STT <--> GSR
     WW -- WakeWordEvent --> SM
     VAD -- VadEvent --> EP
@@ -160,7 +160,13 @@ core.session       →  core.bridge   (인터페이스만)
 app.assistant / app.audio / app.speech  →  ChatGPT selector 지식   (금지)
 ```
 
-이 문서 기준으로 `core/`, `app/`, `windows/`는 **아직 만들지 않는다**. 구조만 확정한다.
+### 3.4 구현 현황
+
+Phase 1(Galaxy Technical Spike)에서 `core/`와 `app/`의 **최소 골격만** 만들었다. 이 문서의 모듈 표에 있는 컴포넌트 대부분(`SessionStateMachine`, `EndpointDetector`, `EndingClassifier`, `CommandParser`, `VadEngine` 구현, `ChatGptAccessibilityBridge` 등)은 **아직 구현되지 않았다**. Spike가 만든 것은 [SPIKE_TEST_GUIDE.md](SPIKE_TEST_GUIDE.md) §2에 정리되어 있다. `windows/`는 만들지 않았다.
+
+### 3.5 프로세스 배치
+
+v0.1과 Technical Spike는 **단일 프로세스**다. `VoiceInteractionSessionService`에 `android:process=":session"`을 쓰지 않는다. 근거와 재검토 조건: [DECISIONS.md](DECISIONS.md) ADR-014 (`DEVICE_TEST_REQUIRED`).
 
 ---
 
@@ -179,6 +185,7 @@ app.assistant / app.audio / app.speech  →  ChatGPT selector 지식   (금지)
 - 용량: 최소 2초 (초기값). Wake Word 감지 시점 기준 **pre-roll ~300 ms**(초기값, DEVICE_TUNABLE)를 STT에 함께 넘긴다.
 - 소비자: `WakeWordEngine`(프레임 단위 512 samples), `VadEngine`(30 ms 프레임), Speech pipeline(연속 PCM).
 - 소비자는 버퍼를 **읽기만** 한다. 쓰기는 `AudioCaptureService`만.
+- **소비자가 항상 켜져 있는 것은 아니다.** 활성 시점은 §4.5가 정한다.
 
 ### 4.3 Wake → STT 전환 (두 가지 모드)
 
@@ -213,6 +220,38 @@ Mode 선택은 온보딩 시 1회 자가진단(pipe 시도 → 즉시 `ERROR_CLI
 ### 4.4 오디오 일시정지 조건
 
 `AudioManager.AudioRecordingCallback`로 다른 앱의 녹음/통화를 감지하면 Wake Word 감지를 일시정지한다(초기 정책). 통화 중 마이크 점유는 OS 우선순위로 우리가 무음을 받을 수 있다.
+
+### 4.5 엔진 활성 시점 (Engine activation policy)
+
+**v0.1 / Technical Spike 확정 정책.** 근거: [DECISIONS.md](DECISIONS.md) ADR-013.
+
+```text
+IDLE
+  AudioRecord         active      ← 마이크는 항상 열려 있다 (DSP 경로 없음)
+  WakeWordEngine      active      ← Porcupine은 항상 PCM을 받는다
+  Endpoint VadEngine  INACTIVE    ← 돌리지 않는다
+  SpeechEngine        INACTIVE
+
+Wake detected → ARMED / LISTENING
+  AudioRecord         active
+  WakeWordEngine      active (debounce 구간 동안 이벤트는 무시 — §6.3)
+  Endpoint VadEngine  ACTIVE      ← 여기서 시작
+  SpeechEngine        ACTIVE
+
+turn 종료 (SENT / ERROR → IDLE)
+  Endpoint VadEngine  → INACTIVE
+  SpeechEngine        → INACTIVE
+```
+
+이유:
+
+1. **Endpoint VAD는 IDLE에서 할 일이 없다.** `EndpointDetector`는 turn 안에서만 의미가 있고, IDLE에는 turn이 없다. IDLE에서 VAD를 돌려도 어떤 이벤트도 소비되지 않는다.
+2. **배터리** — 상시 추론을 Porcupine 하나로 줄인다([RISK_REGISTER.md](RISK_REGISTER.md) R-03 Mitigation과 일치).
+3. IDLE의 PCM은 여전히 `WakeWordEngine`에만 전달되므로 INV-7은 그대로 유지된다.
+
+문서 간 표현이 다르면 **이 절이 우선**한다.
+
+`OPEN_QUESTION`: v0.2에서 "발화 중 침묵으로 wake 오탐 억제" 같은 목적이 생기면 IDLE VAD를 재검토한다. v0.1 범위 밖.
 
 ---
 
@@ -484,7 +523,8 @@ INV-6  Endpoint engine decides send timing, not SpeechRecognizer final.
        (SpeechEvent.Final은 EndpointDetector의 입력이지 SUBMITTING 전이 조건이 아니다.)
 
 INV-7  Idle audio never leaves the device.
-       (IDLE/WAKE 대기 중 PCM은 로컬 WakeWordEngine/VadEngine에만 전달된다.)
+       (IDLE/WAKE 대기 중 PCM은 로컬 WakeWordEngine에만 전달된다. §4.5에 따라
+        IDLE에서는 Endpoint VadEngine도 SpeechEngine도 켜지 않는다.)
 
 INV-8  Numeric endpoint parameters are configuration, not code constants.
        (threshold / grace / hard cap / pre-roll은 Settings에서 읽는다.)

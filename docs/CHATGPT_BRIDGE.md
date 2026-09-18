@@ -303,3 +303,67 @@ Missing send is better than duplicate send.
 | share target 존재 | DEVICE_TEST_REQUIRED | GV-21 |
 | Samsung 키보드 툴바의 트리 영향 | DEVICE_TEST_REQUIRED | GV-12 |
 | 폴링 간격·타임아웃 값 | DEVICE_TUNABLE | |
+
+---
+
+## 10. Go / No-Go Rule (Spike S-3 결과 처리)
+
+결정 근거: [DECISIONS.md](DECISIONS.md) ADR-015. Spike 절차: [SPIKE_TEST_GUIDE.md](SPIKE_TEST_GUIDE.md).
+
+### 10.1 분기 규칙
+
+```text
+S-3 Accessibility 성공
+→ Official ChatGPT App Bridge 방식 계속 진행
+
+S-3 Accessibility 실패
+→ Plan B Share Intent 테스트
+
+Plan B가 자동 Send까지 가능
+→ degraded bridge로 계속 가능
+
+Plan B도 사용자 탭을 요구
+→ 원래 제품 목표인 fully hands-free ChatGPT App Bridge는 NO-GO
+```
+
+### 10.2 "성공"의 정의 (추측 금지, 실기기 관측만)
+
+**Plan A 성공 =** 아래 네 가지가 **모두** 실기기에서 관측될 때.
+
+| # | 관측 항목 | 판정 근거 | GV |
+|---|---|---|---|
+| A1 | composer 후보가 `isEditable && isVisibleToUser`로 발견된다 | Node Inspector 출력 | GV-11 |
+| A2 | `ACTION_SET_TEXT` 후 해당 노드의 `text`가 주입값과 일치한다 | Set Text 재조회 | GV-12 |
+| A3 | Send 후보가 접근성 트리에서 발견되고 `isEnabled`가 된다 | Node Inspector 출력 | GV-11/13 |
+| A4 | `ACTION_CLICK` **1회** 후 composer가 비워진다 | 300 ms / 1 s / 2 s 재조회 | GV-13 |
+
+A1~A3은 되는데 A4만 안 되면 `InjectedButNotSent`이며, **자동 Send 불가**로 분류한다(= Plan A 실패). 재클릭으로 성공시키지 않는다(INV-5).
+
+**Plan B 자동 Send 가능 =** Share Intent로 텍스트가 채워진 뒤, **사용자 탭 없이** 전송이 완료될 때. 실제로는 Accessibility가 살아 있어야 가능하므로, Plan A가 실패한 상태에서 Plan B만으로 자동 Send가 되는 경우는 흔치 않다. **이 항목은 관측으로만 판정한다.**
+
+### 10.3 판정표
+
+| Plan A (A1~A4) | Plan B 자동 Send | 판정 | 다음 단계 |
+|---|---|---|---|
+| 모두 PASS | — | **GO** | Plan A로 v0.1 진행 |
+| 실패 | PASS | **GO (degraded)** | Plan B 기본화. "같은 대화 유지" 목표를 낮춘다 |
+| 실패 | 사용자 탭 필요 | **NO-GO** | §10.4 |
+| 미실행 / 로그 불충분 | — | `INCONCLUSIVE` | PASS로 기록하지 않는다. 재실행 |
+
+### 10.4 NO-GO 시 행동
+
+```text
+Official ChatGPT App Bridge v0.1 = NO-GO
+```
+
+1. 이 판정을 [GALAXY_VALIDATION.md](GALAXY_VALIDATION.md) GV-11~13, GV-21 Result와 [RISK_REGISTER.md](RISK_REGISTER.md) R-01에 기록한다.
+2. **전체 v0.1을 억지로 구현하지 않는다.**
+3. **임의로 OpenAI API 버전으로 전환하지 않는다.** 사용자에게 아래 선택지를 제시한다.
+
+| 선택지 | 유지되는 것 | 포기하는 것 | 영향 문서 |
+|---|---|---|---|
+| **OpenAI API Bridge** | hands-free, Natural Endpoint | 공식 앱 UI, 기존 대화, 구독 UI. 새 ADR + PRODUCT_SPEC §1 수정 필요 | ADR-006/007 supersede |
+| **공식 integration 대기** | 아키텍처 전부. S-1/S-2 파이프라인만 완성 | 지금 당장의 종단 UX | MVP_PLAN Phase 2 축소 |
+| **반자동 degraded mode** | 공식 앱 UI, 기존 대화(Plan A 부분 성공 시) | fully hands-free (Send 탭 1회) | PRODUCT_SPEC §2 수정 |
+
+Spike 단계에서 이 선택을 대신 내리지 않는다.
