@@ -12,9 +12,31 @@
 
     <!--
       QUERY_ALL_PACKAGES is deliberately NOT requested (SECURITY_PRIVACY.md §11).
-      Only the one package we bridge to is declared visible.
+      Only what we actually talk to is declared visible.
     -->
     <queries>
+        <!--
+          S-2. Required from Android 11 (API 30) to interact with a speech
+          recognition service at all. The SpeechRecognizer docs state it outright:
+
+            "For apps targeting Android 11 (API level 30) interaction with a speech
+             recognition service requires <queries> element to be added to the
+             manifest file:
+               <queries>
+                 <intent>
+                   <action android:name="android.speech.RecognitionService" />
+                 </intent>
+               </queries>"
+
+          Without it, createSpeechRecognizer cannot see the provider and S-2 fails
+          for a reason that has nothing to do with EXTRA_AUDIO_SOURCE support — the
+          exact wrong conclusion GV-09 must not reach.
+        -->
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+
+        <!-- S-3. The one app we bridge to. -->
         <package android:name="com.openai.chatgpt" />
         <intent>
             <action android:name="android.intent.action.SEND" />

@@ -89,6 +89,8 @@
 | 항목 | 태그 | 내용 / 근거 |
 |---|---|---|
 | `SpeechRecognizer` 공개 API, main thread 사용 | `CONFIRMED` | 공식 문서 |
+| Android 11+ 에서 `<queries>` 선언 필수 | `CONFIRMED` | 공식 문서: "For apps targeting Android 11 (API level 30) interaction with a speech recognition service requires `<queries>` element to be added to the manifest file" — `<intent><action android:name="android.speech.RecognitionService" /></intent>`. 누락 시 provider가 보이지 않아 S-2가 `EXTRA_AUDIO_SOURCE`와 무관한 이유로 실패한다 |
+| `createSpeechRecognizer(Context, ComponentName)` | `CONFIRMED` (API 8) | 시스템 기본 대신 특정 recognition service를 지정. §8-1의 자기 stub 문제 회피에 사용 |
 | "연속 인식용이 아니다" | `CONFIRMED` | 공식 문서: 구현체가 원격 서버로 스트리밍할 수 있어 continuous recognition 용도가 아님. → Wake 이후 구간만 사용 |
 | `createOnDeviceSpeechRecognizer()` | `CONFIRMED` (API 31) | |
 | `isOnDeviceRecognitionAvailable()` | `CONFIRMED` (API 31) | |
