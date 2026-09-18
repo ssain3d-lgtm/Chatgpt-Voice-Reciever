@@ -1,0 +1,13 @@
+# Copy to `local.properties` (which is git-ignored) and fill in.
+#
+# sdk.dir is what Android Studio writes for you. If it is absent AND neither
+# ANDROID_HOME nor ANDROID_SDK_ROOT is set, the :app module is excluded from the
+# build and only :core is available — see settings.gradle.kts.
+sdk.dir=/path/to/Android/Sdk
+
+# Picovoice AccessKey for Porcupine (SECURITY_PRIVACY.md §9, P-5).
+# Never commit this. Without it the app still builds and runs; the debug UI
+# reports "Porcupine key missing" and wake-word detection is unavailable, but the
+# screen-off microphone test (GV-03) can still be performed.
+# Licensing terms MUST BE VERIFIED AGAINST CURRENT PICOVOICE TERMS (R-13).
+PICOVOICE_ACCESS_KEY=

@@ -1,0 +1,28 @@
+# Secrets / local machine config — never commit
+local.properties
+*.keystore
+*.jks
+
+# Porcupine wake-word assets are licensed material, not repository content.
+# See docs/SPIKE_TEST_GUIDE.md §3.
+app/src/main/assets/wakeword/*.ppn
+app/src/main/assets/wakeword/*.pv
+
+# Build output
+build/
+*/build/
+.gradle/
+.cxx/
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# IDE
+.idea/
+*.iml
+.kotlin/
+captures/
+
+# OS
+.DS_Store
