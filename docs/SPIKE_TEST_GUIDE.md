@@ -206,6 +206,17 @@ Mode P가 동작하면 20초 발화 중 2초 휴지 3회. `onSegmentResults`가 
 
 기록: 비프까지 지연, 첫 음절 손실 체감, partial/final 도착 시각, 종료 후 캡처 복귀 여부(S-1 화면의 `liveness`가 LIVE로 돌아오는지).
 
+> ⚠️ **release 확인 규칙.** Mode H는 `AudioCaptureService`가 마이크를 **실제로** 놓았다고 확인한 뒤에만 recognizer를 시작한다. 고정 대기가 아니다. 두 캡처가 겹치면 한쪽이 무음이 되므로, 확인 없이 넘기면 "그럴듯하지만 아무것도 측정하지 않은" 결과가 나온다.
+>
+> ```text
+> Handoff : release CONFIRMED after N ms        → 이 run은 유효
+> Handoff : release NOT confirmed ... ABORTED   → 이 run은 INVALID
+> ```
+>
+> 확인이 안 되면 앱이 **recognizer를 아예 시작하지 않고 run을 중단**한다. 화면에 STT 결과가 나오지 않는 것이 정상이며, 이 경우는 **절대 PASS로 기록하지 않는다.** 재시도하거나, 기기가 실제로 느리면 `handoffReleaseTimeoutMs`를 올린 뒤 다시 측정한다.
+>
+> S-2 화면의 `Handoff :` 줄을 **매 run마다 확인하고 결과와 함께 기록한다.**
+
 #### E-5. pre-roll
 
 `preRollMs`를 200 / 300 / 500으로 바꿔가며 Mode P에서 첫 음절 보존을 비교. **제품 상수가 아니다**(INV-8).
@@ -332,6 +343,13 @@ PASS  Mode P 또는 Mode H 중 하나로 실사용 가능한 STT 시작이 가�
 ```
 
 **Mode P 실패 자체는 NO-GO가 아니다.** Mode H가 usable하면 PASS.
+
+PASS로 쓸 수 없는 run (둘 다 `INCONCLUSIVE`):
+
+```text
+Recognizer 가 우리 패키지(AURA stub)인 상태에서 나온 결과      → E-1 참조
+Handoff 가 "release NOT confirmed ... ABORTED" 인 Mode H run  → E-4 참조
+```
 
 ### S-3
 

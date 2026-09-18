@@ -279,8 +279,13 @@ class SpikeSpeechProbe(private val context: Context) {
      * device can take far longer.
      *
      * So we wait for the capture service to CONFIRM the release, and if the
-     * confirmation never comes we say so in the result rather than silently
-     * pretending the handoff was clean.
+     * confirmation never comes the run is ABORTED rather than continued.
+     *
+     * Continuing would be worse than losing the attempt. The recognizer would very
+     * likely still produce partials and a final, so the screen would show a result
+     * that looks like a clean Mode H run — and a tester reading it would reasonably
+     * record "Mode H PASS". A run that cannot be trusted must not be able to look
+     * like a passing one; the same rule the rest of this spike follows.
      */
     private fun startModeH() {
         val forTurn = turnId
@@ -317,19 +322,27 @@ class SpikeSpeechProbe(private val context: Context) {
             }
 
             if (waited >= timeoutMs) {
-                // Proceed anyway so the tester still gets data, but mark the run so a
-                // two-capture conflict is never mistaken for a Mode H limitation.
+                // Abort. Do NOT start the recognizer: a run that cannot be trusted
+                // must not be able to produce output that looks like a pass.
                 snapshot = snapshot.copy(
                     handoffNote = "release NOT confirmed within $timeoutMs ms — " +
-                        "treat this run as INCONCLUSIVE",
+                        "run ABORTED, this is INVALID, never record it as PASS",
                 )
                 Spike.log.log(
                     SpikeId.S2, "Handoff", "ReleaseTimeout", EventResult.FAIL,
                     turnId = forTurn, latencyMs = waited,
-                    error = "capture service did not confirm microphone release",
+                    error = "capture service did not confirm microphone release; " +
+                        "recognizer was NOT started",
                 )
-                mark("$waited ms  release NOT confirmed — proceeding, result unreliable")
-                beginModeHListening(forTurn)
+                mark("$waited ms  release NOT confirmed — run aborted, no STT started")
+                failFast(
+                    "Mode H aborted: AudioCaptureService did not confirm the microphone " +
+                        "release within $timeoutMs ms, so the recognizer was not started. " +
+                        "Handing the mic over while ours is still closing can leave one of " +
+                        "two simultaneous captures silent, and the run would look valid " +
+                        "while measuring nothing. Retry, or raise handoffReleaseTimeoutMs " +
+                        "if this device is genuinely slower."
+                )
                 return
             }
 
@@ -521,12 +534,21 @@ class SpikeSpeechProbe(private val context: Context) {
         writeSide = null
     }
 
+    /**
+     * Abort the current run.
+     *
+     * Routed through [finish] rather than just flipping a flag, because the teardown
+     * is not optional: a Mode H abort must hand the microphone back to
+     * AudioCaptureService. Without that, a single failed handoff would leave capture
+     * paused for the rest of the session and every later S-1 reading would show a
+     * dead microphone for a reason that has nothing to do with S-1.
+     */
     private fun failFast(message: String) {
-        snapshot = snapshot.copy(running = false, error = message)
-        Spike.log.log(SpikeId.S2, "Probe", "Failed", EventResult.FAIL, turnId = turnId, error = message)
+        val forTurn = turnId
+        snapshot = snapshot.copy(error = message)
+        Spike.log.log(SpikeId.S2, "Probe", "Failed", EventResult.FAIL, turnId = forTurn, error = message)
         mark("FAILED: $message")
-        gate.close()
-        publish()
+        finish(forTurn, "failed: $message")
     }
 
     private fun mark(line: String) {
