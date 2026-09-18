@@ -48,6 +48,10 @@
             android:exported="false"
             android:label="S-1 Assistant / Wake" />
         <activity
+            android:name=".debug.S2Activity"
+            android:exported="false"
+            android:label="S-2 Audio to STT" />
+        <activity
             android:name=".debug.LogActivity"
             android:exported="false"
             android:label="Logs" />
