@@ -18,12 +18,18 @@ import android.widget.TextView
 /**
  * Minimal view helpers.
  *
- * Why framework Views and not Compose (or any AndroidX at all): this APK's job is to
- * be built and side-loaded quickly on a Galaxy to answer three questions. Every extra
- * version-coupled dependency is one more way for the build to fail before a single
- * measurement is taken. Zero third-party UI dependencies means the module needs only
- * AGP, Kotlin and Porcupine. The brief allows Compose; it does not require it, and the
- * dashboard has no need for it.
+ * Why framework Views and not Compose, and why no androidx import in this
+ * module's own UI code: this APK's job is to be built and side-loaded quickly on
+ * a Galaxy to answer three questions. Every extra version-coupled dependency is
+ * one more way for the build to fail before a single measurement is taken. Zero
+ * third-party UI dependencies means the only dependencies this module declares
+ * are AGP, Kotlin and Porcupine. The brief allows Compose; it does not require
+ * it, and the dashboard has no need for it.
+ *
+ * That is a statement about the code here, not about what the build resolves.
+ * Porcupine pulls androidx.core in transitively, so the APK does ship AndroidX
+ * and gradle.properties has to set android.useAndroidX=true. Nothing in this
+ * file uses it.
  */
 
 fun Context.dp(value: Int): Int = TypedValue.applyDimension(
