@@ -52,7 +52,7 @@ The documents under `docs/` are the implementation baseline. [`ARCHITECTURE.md`]
 | [Risk register](docs/RISK_REGISTER.md) | Critical/High/Medium risks with mitigation, fallback, validation |
 | [Galaxy validation](docs/GALAXY_VALIDATION.md) | Real-device test plan (GV-01 … GV-22) with result slots |
 | [Spike test guide](docs/SPIKE_TEST_GUIDE.md) | Step-by-step Galaxy procedure for the Phase 1 Technical Spike, and its Go/No-Go |
-| [Decisions](docs/DECISIONS.md) | ADR-001 … ADR-015 |
+| [Decisions](docs/DECISIONS.md) | ADR-001 … ADR-016 |
 | [Architecture review](docs/ARCHITECTURE_REVIEW.md) | Historical record of the external review that shaped the above (not authoritative) |
 
 ## Architecture summary (v0.1)

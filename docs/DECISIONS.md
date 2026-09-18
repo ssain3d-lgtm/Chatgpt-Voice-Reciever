@@ -324,7 +324,9 @@ Porcupine(Wake Word)은 항상 PCM을 받는다. 마이크 자체는 IDLE에도 
 
 ## ADR-014 VoiceInteractionSessionService process separation — not adopted in the Spike
 
-**Status:** Accepted (2026-09-18) — 결론은 `DEVICE_TEST_REQUIRED`
+**Status:** ~~Accepted (2026-09-18)~~ **Superseded by ADR-016 (2026-09-18)**
+
+> ⚠️ **이 ADR의 조사 결과는 사실과 다르다.** "공식 문서가 별도 프로세스를 요구·권장하지 않는다"는 판단은 **틀렸다**. `VoiceInteractionService` 공식 레퍼런스가 명시적으로 별도 프로세스를 권장한다. [ADR-016](#adr-016-세션-프로세스-분리는-공식-권장-spike에서만-한시적으로-단일-프로세스)을 볼 것. 결론(Spike는 단일 프로세스)만 유지되고, 근거는 전부 교체되었다.
 
 **Context:**
 `VoiceInteractionService`(VIS)는 어시스턴트 역할을 가진 동안 시스템이 상시 바인딩한다. 따라서 가능한 한 가볍게 유지해야 한다는 요구가 있다. 흔히 제안되는 방법은 세션/UI 쪽을 별도 프로세스로 빼는 것이다.
@@ -408,3 +410,46 @@ Plan B도 사용자 탭을 요구
 **Consequences:** S-3이 NO-GO면 Phase 2(v0.1 구현)는 **사용자 결정 전까지 시작하지 않는다**.
 
 **Validation:** GV-11, GV-12, GV-13, GV-21. Spike S-3.
+
+---
+
+## ADR-016 세션 프로세스 분리는 공식 권장. Spike에서만 한시적으로 단일 프로세스
+
+**Status:** Accepted (2026-09-18) — supersedes ADR-014
+
+**Context:**
+[ADR-014](#adr-014-voiceinteractionsessionservice-process-separation--not-adopted-in-the-spike)는 "Android 공식 문서와 AOSP 가이드 어디에도 `android:process` 요구·권장이 없다"고 적었다. **이 조사는 틀렸다.** `VoiceInteractionService` 공식 레퍼런스의 클래스 개요가 그 반대를 명시한다.
+
+> "The current `VoiceInteractionService` that has been selected by the user is **kept always running** by the system, to allow it to do things like listen for hotwords in the background to instigate voice interactions. Because this service is always running, **it should be kept as lightweight as possible.** Heavy-weight operations (including showing UI) should be implemented in the associated `android.service.voice.VoiceInteractionSessionService` when an actual voice interaction is taking place, **and that service should run in a separate process from this one.**"
+>
+> — Android Developers, [`VoiceInteractionService`](https://developer.android.com/reference/android/service/voice/VoiceInteractionService) 클래스 개요
+
+즉 프로세스 분리는 `DEVICE_TEST_REQUIRED`한 열린 질문이 아니라 **`CONFIRMED`된 공식 권장**이다. ADR-014가 "근거 없음"을 이유로 기각한 것은 [ADR-012](#adr-012-evidence-tagging-policy)(근거 우선순위: Android Developers 최상위) 위반이기도 하다.
+
+**Decision:**
+
+| 단계 | 프로세스 | 근거 |
+|---|---|---|
+| Technical Spike (현재) | **단일 프로세스** (한시적) | S-1/S-2/S-3 로그를 한 `DebugLog` 링버퍼에서 읽는 것이 Spike의 산출물 자체다. 프로세스를 나누면 로그·캡처 상태·Bridge 상태가 경계로 쪼개져 IPC 병합 코드가 필요하고, 그 코드는 검증하려는 세 가설과 무관하다 |
+| v0.1 | **별도 프로세스 (`android:process=":session"`)** | 공식 권장. 아래 조건으로 진입 |
+
+**v0.1 전에 반드시 수행할 것 (선택이 아니라 예정된 작업):**
+
+```text
+1. GptVoiceInteractionSessionService 에 android:process=":session" 선언
+2. DebugLog 를 프로세스 경계 너머로 병합할 수단 마련
+   (bound service / Messenger, 또는 세션 프로세스 로그를 logcat 으로만 수집)
+3. AudioCaptureService 는 VIS 프로세스에 남긴다 — 마이크 while-in-use 예외는
+   "VIS를 제공하는 앱이 시작한 FGS"에 걸리므로, 마이크 소유 컴포넌트를 VIS에서
+   떼어내는 것은 별개의 위험이다 (ANDROID_CONSTRAINTS §4)
+4. 분리 전후로 GV-07(72h 생존)을 각각 측정해 비교
+```
+
+**한시적 단일 프로세스가 허용되는 범위:** Spike 한정. v0.1 구현 착수 시 위 1~4를 수행하기 전에는 `app.assistant`에 UI·무거운 의존성을 더 추가하지 않는다.
+
+**Consequences:**
+- [ANDROID_CONSTRAINTS.md](ANDROID_CONSTRAINTS.md) §2의 해당 행을 `CONFIRMED (공식 권장)`으로 정정했다.
+- Spike APK의 단일 프로세스는 **의도된 한시적 상태**이며, 실기기 결과와 무관하게 v0.1에서 분리한다. ADR-014가 적은 "(a)/(b) 관측 시에만 재검토"라는 조건은 **폐기**한다 — 공식 권장은 관측을 기다릴 사안이 아니다.
+- 이 ADR은 ADR-012의 실패 사례이기도 하다. "공식 문서에 없다"는 **문서를 끝까지 읽었을 때만** 할 수 있는 주장이다.
+
+**Validation:** v0.1 구현 시 위 1~4. GV-07.

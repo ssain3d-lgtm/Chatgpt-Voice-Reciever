@@ -78,6 +78,19 @@
                 android:resource="@xml/voice_interaction_service" />
         </service>
 
+        <!--
+          TEMPORARY: no android:process here.
+
+          The official VoiceInteractionService docs recommend that this service run
+          in a SEPARATE process from the VoiceInteractionService, because the VIS is
+          kept always running and must stay lightweight. The Spike keeps both in one
+          process only so that S-1/S-2/S-3 share a single in-memory DebugLog, which
+          is the spike's deliverable.
+
+          v0.1 must add android:process=":session" — see DECISIONS.md ADR-016, which
+          supersedes ADR-014 and lists the steps. AudioCaptureService stays in the
+          VIS process even then (ANDROID_CONSTRAINTS.md §4).
+        -->
         <service
             android:name=".assistant.GptVoiceInteractionSessionService"
             android:exported="true"

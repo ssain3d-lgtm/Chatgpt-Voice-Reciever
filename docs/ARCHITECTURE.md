@@ -166,7 +166,16 @@ Phase 1(Galaxy Technical Spike)에서 `core/`와 `app/`의 **최소 골격만** 
 
 ### 3.5 프로세스 배치
 
-v0.1과 Technical Spike는 **단일 프로세스**다. `VoiceInteractionSessionService`에 `android:process=":session"`을 쓰지 않는다. 근거와 재검토 조건: [DECISIONS.md](DECISIONS.md) ADR-014 (`DEVICE_TEST_REQUIRED`).
+**공식 권장은 세션 서비스의 별도 프로세스다** (`CONFIRMED` — [ANDROID_CONSTRAINTS.md](ANDROID_CONSTRAINTS.md) §2). VIS는 시스템이 상시 실행하므로 가볍게 유지해야 하고, UI를 포함한 무거운 작업은 `VoiceInteractionSessionService`에서, **그리고 그 서비스는 VIS와 별도 프로세스에서** 실행해야 한다.
+
+| 단계 | 배치 |
+|---|---|
+| Technical Spike | 단일 프로세스 — **한시적**. `DebugLog`를 한 곳에서 읽기 위한 진단 편의 |
+| v0.1 | `android:process=":session"` 분리 — 예정된 작업이며 실기기 결과를 기다리지 않는다 |
+
+`AudioCaptureService`는 분리 후에도 **VIS 프로세스에 남긴다.** 마이크 while-in-use 예외는 "VIS를 제공하는 앱이 시작한 FGS"에 걸리므로(§4), 마이크 소유 컴포넌트를 떼어내는 것은 별개의 위험이다.
+
+근거와 이행 조건: [DECISIONS.md](DECISIONS.md) ADR-016 (ADR-014를 supersede).
 
 ---
 

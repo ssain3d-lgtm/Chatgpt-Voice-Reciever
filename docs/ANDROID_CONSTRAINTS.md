@@ -32,8 +32,9 @@
 | 잠금 화면 위 세션 표시 | `DEVICE_TEST_REQUIRED` | VIS 메타데이터 `supportsLaunchVoiceAssistFromKeyguard`. 세션 UI 표시 가능성은 있으나 One UI 동작 검증 필요. GV-04 |
 | 잠금 상태에서 `startAssistantActivity` | `DEVICE_TEST_REQUIRED` | 잠금 해제 화면이 뜰 것으로 예상. 정책: 잠금 중이면 큐잉 후 해제 시 전송 |
 | `showSession()` 호출 주체 | `CONFIRMED` | VIS에서 `showSession(args, flags)`. 세션 UI는 이 경로로만 표시 |
-| `VoiceInteractionSessionService`의 별도 프로세스(`android:process=":session"`) 요구 | `CONFIRMED (요구하지 않음)` | `android.service.voice` 공식 문서와 AOSP Voice Interaction 가이드에 `android:process` 요구·권장 없음. AOSP `development/samples/VoiceInteraction` 샘플도 단일 프로세스 |
-| 별도 프로세스가 One UI에서 VIS 생존성을 개선하는가 | `DEVICE_TEST_REQUIRED` | 공식 근거 없음. Spike·v0.1은 단일 프로세스 유지([DECISIONS.md](DECISIONS.md) ADR-014). 재검토 조건은 ADR-014에 측정 가능하게 기재 |
+| VIS는 상시 실행되며 가볍게 유지해야 함 | `CONFIRMED` | `VoiceInteractionService` 레퍼런스: "is kept always running by the system … Because this service is always running, it should be kept as lightweight as possible" |
+| `VoiceInteractionSessionService`를 **별도 프로세스**에서 실행 | `CONFIRMED (공식 권장)` | 같은 문서: "Heavy-weight operations (including showing UI) should be implemented in the associated `VoiceInteractionSessionService` … **and that service should run in a separate process from this one**". Technical Spike는 진단 편의를 위해 한시적으로 단일 프로세스이며, **v0.1에서 분리한다** ([DECISIONS.md](DECISIONS.md) ADR-016; ADR-014는 Superseded) |
+| 별도 프로세스가 One UI sleeping 정책에 미치는 영향 | `DEVICE_TEST_REQUIRED` | 분리 자체는 공식 권장이므로 논쟁 대상이 아니다. 분리 전후 생존성 차이만 GV-07로 측정 |
 
 ## 3. ROLE_ASSISTANT
 
