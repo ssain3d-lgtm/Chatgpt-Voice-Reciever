@@ -51,7 +51,8 @@ The documents under `docs/` are the implementation baseline. [`ARCHITECTURE.md`]
 | [MVP plan](docs/MVP_PLAN.md) | Galaxy Technical Spike → v0.1 scope → exclusions → v0.2 candidates |
 | [Risk register](docs/RISK_REGISTER.md) | Critical/High/Medium risks with mitigation, fallback, validation |
 | [Galaxy validation](docs/GALAXY_VALIDATION.md) | Real-device test plan (GV-01 … GV-22) with result slots |
-| [Decisions](docs/DECISIONS.md) | ADR-001 … ADR-012 |
+| [Spike test guide](docs/SPIKE_TEST_GUIDE.md) | Step-by-step Galaxy procedure for the Phase 1 Technical Spike, and its Go/No-Go |
+| [Decisions](docs/DECISIONS.md) | ADR-001 … ADR-015 |
 | [Architecture review](docs/ARCHITECTURE_REVIEW.md) | Historical record of the external review that shaped the above (not authoritative) |
 
 ## Architecture summary (v0.1)
@@ -71,17 +72,47 @@ The documents under `docs/` are the implementation baseline. [`ARCHITECTURE.md`]
 
 ## Project state
 
-**Design phase. No implementation yet.** `core/`, `app/`, and `windows/` are intentionally absent.
-
-The next step is **not** the full app. It is a **Galaxy Technical Spike** ([MVP plan](docs/MVP_PLAN.md) §1) that must answer three questions on a real device:
+**Phase 1 — Galaxy Technical Spike.** This is *not* the v0.1 app, and it is deliberately
+not trying to be: it is the smallest thing that can answer three questions on a real
+Samsung Galaxy before thousands of lines get built on an unverified Android assumption.
 
 ```text
-1. VoiceInteractionService + screen-off wake feasibility
-2. AudioRecord → SpeechRecognizer pipeline feasibility
-3. Official ChatGPT app Accessibility injection/send feasibility
+S-1  VoiceInteractionService + screen-off wake feasibility
+S-2  AudioRecord → SpeechRecognizer pipeline feasibility
+S-3  Official ChatGPT app Accessibility injection/send feasibility
 ```
 
-Full v0.1 implementation starts only after all three pass.
+Full v0.1 implementation starts only after all three pass ([MVP plan](docs/MVP_PLAN.md) §1),
+and S-3 has an explicit NO-GO branch ([ChatGPT bridge](docs/CHATGPT_BRIDGE.md) §10).
+
+### What exists
+
+```text
+core/   pure Kotlin/JVM, no Android dependency — TurnId, TurnGate (INV-3),
+        SendGuard (INV-5), ChatBridge result types, WakeWordEngine / SpeechEngine
+        contracts, DebugLog ring buffer, tunable SpikeConfig. Unit-tested.
+app/    Android debug APK: assistant components (VIS / session / RecognitionService
+        stub), AudioCaptureService (FGS microphone, the single AudioRecord),
+        Porcupine behind WakeWordEngine, Mode P / Mode H speech probe, ChatGPT
+        accessibility node inspector + injection/send probe, share-intent probe,
+        and a debug dashboard that runs each spike independently.
+```
+
+**Not built yet** (v0.1, after the spike passes): the session state machine, the
+Natural Endpoint engine and Korean ending classifier, the command parser, a VAD
+implementation, follow-up mode, settings, onboarding, and `windows/`.
+
+Build and run it: [docs/SPIKE_TEST_GUIDE.md](docs/SPIKE_TEST_GUIDE.md).
+
+```bash
+./gradlew :core:test        # pure Kotlin — runs without the Android SDK
+./gradlew assembleDebug     # needs the Android SDK
+# → app/build/outputs/apk/debug/app-debug.apk
+```
+
+No real-device results have been recorded yet. Every `GV-*` Result in
+[Galaxy validation](docs/GALAXY_VALIDATION.md) is still `NOT TESTED`, and nothing in
+these documents may be marked `PASS` until it has actually been run on hardware.
 
 ## Known platform limitations
 
