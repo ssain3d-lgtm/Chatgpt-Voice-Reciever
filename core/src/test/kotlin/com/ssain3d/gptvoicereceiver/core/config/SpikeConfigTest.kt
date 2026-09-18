@@ -115,6 +115,19 @@ class SpikeConfigTest {
     }
 
     @Test
+    fun `handoff release timeout is a parsed setting, not a constant`() {
+        assertEquals(1500, SpikeConfig.parse(emptyMap()).config.handoffReleaseTimeoutMs)
+
+        val ok = SpikeConfig.parse(mapOf("handoffReleaseTimeoutMs" to "2500"))
+        assertTrue(ok.warnings.isEmpty())
+        assertEquals(2500, ok.config.handoffReleaseTimeoutMs)
+
+        val bad = SpikeConfig.parse(mapOf("handoffReleaseTimeoutMs" to "0"))
+        assertEquals(1500, bad.config.handoffReleaseTimeoutMs)
+        assertTrue(bad.warnings.single().contains("handoffReleaseTimeoutMs"))
+    }
+
+    @Test
     fun `constructing an inconsistent config directly is rejected`() {
         val failed = try {
             SpikeConfig(preRollMs = 1000, ringBufferMs = 500); false

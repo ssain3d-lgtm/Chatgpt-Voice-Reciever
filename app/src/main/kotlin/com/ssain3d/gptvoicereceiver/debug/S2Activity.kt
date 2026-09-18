@@ -160,6 +160,9 @@ class S2Activity : Activity() {
             appendLine("Latency   : start=${s.startLatencyMs ?: "-"}ms " +
                 "firstPartial=${s.firstPartialLatencyMs ?: "-"}ms final=${s.finalLatencyMs ?: "-"}ms")
             appendLine("Pipe      : ${s.pipeBytesWritten} bytes written, ${s.pipeFramesDropped} frames dropped")
+            if (s.mode == SpeechMode.MODE_H_HANDOFF) {
+                appendLine("Handoff   : ${s.handoffNote.ifEmpty { "-" }}")
+            }
             appendLine()
             appendLine("Timeline (brief §12 — recorded for future endpoint tuning):")
             if (s.timeline.isEmpty()) appendLine("  -") else s.timeline.forEach { appendLine("  $it") }

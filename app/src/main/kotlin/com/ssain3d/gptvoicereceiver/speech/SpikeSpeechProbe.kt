@@ -54,6 +54,8 @@ class SpikeSpeechProbe(private val context: Context) {
         val pipeBytesWritten: Long = 0,
         val pipeFramesDropped: Long = 0,
         val startLatencyMs: Long? = null,
+        /** Mode H only: whether the microphone release was actually confirmed. */
+        val handoffNote: String = "",
         val firstPartialLatencyMs: Long? = null,
         val finalLatencyMs: Long? = null,
         val modePVerdict: String = "not run",
@@ -266,25 +268,93 @@ class SpikeSpeechProbe(private val context: Context) {
 
     // ---------------------------------------------------------------------- Mode H
 
+    /**
+     * Mode H must not hand the microphone over on a timer.
+     *
+     * Under Android 10+ input sharing, two simultaneous captures leave one of them
+     * silent — so if the recognizer opens the mic while our AudioRecord is still
+     * closing, the run produces a plausible-looking but meaningless result. Waiting a
+     * fixed interval assumes the audio thread finishes within it, which nothing
+     * guarantees: it is inside a blocking read when the request arrives, and a loaded
+     * device can take far longer.
+     *
+     * So we wait for the capture service to CONFIRM the release, and if the
+     * confirmation never comes we say so in the result rather than silently
+     * pretending the handoff was clean.
+     */
     private fun startModeH() {
+        val forTurn = turnId
+
+        if (!AudioCaptureService.isCapturing()) {
+            mark("Mode H: no capture running — the microphone is already free")
+            snapshot = snapshot.copy(handoffNote = "no capture to release (mic already free)")
+            beginModeHListening(forTurn)
+            return
+        }
+
         mark("Mode H: releasing our AudioRecord before startListening")
+        val requestedAt = SystemClock.elapsedRealtime()
         AudioCaptureService.releaseForHandoff()
+        awaitMicRelease(forTurn, requestedAt)
+    }
+
+    private fun awaitMicRelease(forTurn: TurnId, requestedAt: Long) {
+        val timeoutMs = Spike.config.handoffReleaseTimeoutMs
+
+        fun poll() {
+            if (forTurn != turnId || !snapshot.running) return
+            val waited = SystemClock.elapsedRealtime() - requestedAt
+
+            if (AudioCaptureService.isReleasedForHandoff()) {
+                snapshot = snapshot.copy(handoffNote = "release CONFIRMED after $waited ms")
+                Spike.log.log(
+                    SpikeId.S2, "Handoff", "ReleaseConfirmed", EventResult.OK,
+                    turnId = forTurn, latencyMs = waited,
+                )
+                mark("$waited ms  microphone release confirmed")
+                beginModeHListening(forTurn)
+                return
+            }
+
+            if (waited >= timeoutMs) {
+                // Proceed anyway so the tester still gets data, but mark the run so a
+                // two-capture conflict is never mistaken for a Mode H limitation.
+                snapshot = snapshot.copy(
+                    handoffNote = "release NOT confirmed within $timeoutMs ms — " +
+                        "treat this run as INCONCLUSIVE",
+                )
+                Spike.log.log(
+                    SpikeId.S2, "Handoff", "ReleaseTimeout", EventResult.FAIL,
+                    turnId = forTurn, latencyMs = waited,
+                    error = "capture service did not confirm microphone release",
+                )
+                mark("$waited ms  release NOT confirmed — proceeding, result unreliable")
+                beginModeHListening(forTurn)
+                return
+            }
+
+            handler.postDelayed({ poll() }, HANDOFF_POLL_MS)
+        }
+
+        poll()
+    }
+
+    private fun beginModeHListening(forTurn: TurnId) {
+        if (forTurn != turnId || !snapshot.running) return
 
         // The cue tells the user the handoff is done. Anything said before it is the
-        // loss Mode H is being measured for.
-        handler.postDelayed({
-            WakeFeedback.beep()
-            mark("cue tone — speak after this")
+        // loss Mode H is being measured for, so it fires only once the mic is free.
+        WakeFeedback.beep()
+        mark("cue tone — speak after this")
 
-            createRecognizer()
-            val ok = runCatching { recognizer?.startListening(baseIntent()) }
-            if (ok.isFailure) {
-                failFast("startListening threw: ${ok.exceptionOrNull()}")
-                return@postDelayed
-            }
-            snapshot = snapshot.copy(startLatencyMs = SystemClock.elapsedRealtime() - startedAtMs)
-            publish()
-        }, HANDOFF_SETTLE_MS)
+        createRecognizer()
+        val ok = runCatching { recognizer?.startListening(baseIntent()) }
+        if (ok.isFailure) {
+            failFast("startListening threw: ${ok.exceptionOrNull()}")
+            return
+        }
+        snapshot = snapshot.copy(startLatencyMs = SystemClock.elapsedRealtime() - startedAtMs)
+        publish()
     }
 
     // ------------------------------------------------------------------- recognizer
@@ -537,6 +607,8 @@ class SpikeSpeechProbe(private val context: Context) {
 
     private companion object {
         const val MAX_TIMELINE = 60
-        const val HANDOFF_SETTLE_MS = 250L
+
+        /** Handshake polling interval. The wait itself is bounded by config. */
+        const val HANDOFF_POLL_MS = 20L
     }
 }

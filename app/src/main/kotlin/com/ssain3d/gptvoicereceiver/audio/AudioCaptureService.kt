@@ -57,6 +57,14 @@ class AudioCaptureService : Service() {
     @Volatile private var running = false
     @Volatile private var handoffPaused = false
 
+    /**
+     * Mode H handshake. Deliberately a dedicated volatile rather than a field of
+     * [state]: the audio thread and the main thread both read-modify-write that data
+     * class, so a flag carried inside it could be lost to a concurrent copy() — and
+     * losing THIS flag means handing the microphone over before it was released.
+     */
+    @Volatile private var micReleasedForHandoff = false
+
     private var wakeEngine: WakeWordEngine = DisabledWakeWordEngine("not started")
     private var ringBuffer: PcmRingBuffer? = null
 
@@ -277,7 +285,14 @@ class AudioCaptureService : Service() {
                     runCatching { record?.stop() }
                     runCatching { record?.release() }
                     record = null
+                    // Publish the handshake only after the release has actually
+                    // happened. SpikeSpeechProbe blocks on exactly this.
+                    micReleasedForHandoff = true
                     state = state.copy(recordingState = "RELEASED", micReleasedForHandoff = true)
+                    Spike.log.log(
+                        SpikeId.S2, "AudioRecord", "ReleasedForHandoff", EventResult.OK,
+                        detail = "microphone is now free for the recognizer",
+                    )
                     while (running && handoffPaused) Thread.sleep(50)
                     if (!running) break
 
@@ -291,6 +306,7 @@ class AudioCaptureService : Service() {
                         return
                     }
                     record.startRecording()
+                    micReleasedForHandoff = false
                     state = state.copy(recordingState = "RECORDING", micReleasedForHandoff = false)
                     Spike.log.log(
                         SpikeId.S1, "AudioRecord", "Reacquired", EventResult.OK,
@@ -494,10 +510,22 @@ class AudioCaptureService : Service() {
          */
         fun releaseForHandoff(): Boolean {
             val svc = instance ?: return false
+            // Clear first, so a caller polling isReleasedForHandoff() cannot observe a
+            // stale true left over from a previous handoff and proceed immediately.
+            svc.micReleasedForHandoff = false
             svc.handoffPaused = true
             Spike.log.log(SpikeId.S2, "AudioCaptureService", "ReleaseForHandoff", EventResult.INFO)
             return true
         }
+
+        /**
+         * True once the audio thread has genuinely stopped and released the
+         * AudioRecord — not merely once a release was requested.
+         */
+        fun isReleasedForHandoff(): Boolean = instance?.micReleasedForHandoff == true
+
+        /** Is there actually a capture to release? */
+        fun isCapturing(): Boolean = instance?.running == true
 
         fun resumeAfterHandoff(): Boolean {
             val svc = instance ?: return false

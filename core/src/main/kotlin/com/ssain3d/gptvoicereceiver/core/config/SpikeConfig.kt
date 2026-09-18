@@ -32,6 +32,14 @@ data class SpikeConfig(
     /** How long to wait for the recognizer to say anything before calling Mode P dead. */
     val modePProbeTimeoutMs: Int = DEFAULT_MODE_P_PROBE_TIMEOUT_MS,
 
+    /**
+     * Mode H: how long to wait for the capture service to confirm it has actually
+     * released the microphone before handing it to the recognizer. Two simultaneous
+     * captures is what makes one of them silent, so this is a real handshake, not a
+     * cosmetic delay.
+     */
+    val handoffReleaseTimeoutMs: Int = DEFAULT_HANDOFF_RELEASE_TIMEOUT_MS,
+
     /** Accessibility node search: polling interval and overall budget. CHATGPT_BRIDGE.md §3. */
     val composerPollMs: Int = DEFAULT_COMPOSER_POLL_MS,
     val composerTimeoutMs: Int = DEFAULT_COMPOSER_TIMEOUT_MS,
@@ -62,6 +70,7 @@ data class SpikeConfig(
         const val DEFAULT_RING_BUFFER_MS = 2000
         const val DEFAULT_SAMPLE_RATE_HZ = 16_000
         const val DEFAULT_MODE_P_PROBE_TIMEOUT_MS = 4000
+        const val DEFAULT_HANDOFF_RELEASE_TIMEOUT_MS = 1500
         const val DEFAULT_COMPOSER_POLL_MS = 200
         const val DEFAULT_COMPOSER_TIMEOUT_MS = 4000
         val DEFAULT_SEND_VERIFY_PROBES_MS = listOf(300, 1000, 2000)
@@ -160,6 +169,11 @@ data class SpikeConfig(
                     modePProbeTimeoutMs = int(
                         "modePProbeTimeoutMs",
                         DEFAULT_MODE_P_PROBE_TIMEOUT_MS,
+                        TIMEOUT_RANGE,
+                    ),
+                    handoffReleaseTimeoutMs = int(
+                        "handoffReleaseTimeoutMs",
+                        DEFAULT_HANDOFF_RELEASE_TIMEOUT_MS,
                         TIMEOUT_RANGE,
                     ),
                     composerPollMs = poll,
