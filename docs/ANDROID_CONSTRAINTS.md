@@ -32,6 +32,9 @@
 | 잠금 화면 위 세션 표시 | `DEVICE_TEST_REQUIRED` | VIS 메타데이터 `supportsLaunchVoiceAssistFromKeyguard`. 세션 UI 표시 가능성은 있으나 One UI 동작 검증 필요. GV-04 |
 | 잠금 상태에서 `startAssistantActivity` | `DEVICE_TEST_REQUIRED` | 잠금 해제 화면이 뜰 것으로 예상. 정책: 잠금 중이면 큐잉 후 해제 시 전송 |
 | `showSession()` 호출 주체 | `CONFIRMED` | VIS에서 `showSession(args, flags)`. 세션 UI는 이 경로로만 표시 |
+| VIS는 상시 실행되며 가볍게 유지해야 함 | `CONFIRMED` | `VoiceInteractionService` 레퍼런스: "is kept always running by the system … Because this service is always running, it should be kept as lightweight as possible" |
+| `VoiceInteractionSessionService`를 **별도 프로세스**에서 실행 | `CONFIRMED (공식 권장)` | 같은 문서: "Heavy-weight operations (including showing UI) should be implemented in the associated `VoiceInteractionSessionService` … **and that service should run in a separate process from this one**". Technical Spike는 진단 편의를 위해 한시적으로 단일 프로세스이며, **v0.1에서 분리한다** ([DECISIONS.md](DECISIONS.md) ADR-016; ADR-014는 Superseded) |
+| 별도 프로세스가 One UI sleeping 정책에 미치는 영향 | `DEVICE_TEST_REQUIRED` | 분리 자체는 공식 권장이므로 논쟁 대상이 아니다. 분리 전후 생존성 차이만 GV-07로 측정 |
 
 ## 3. ROLE_ASSISTANT
 
@@ -86,6 +89,8 @@
 | 항목 | 태그 | 내용 / 근거 |
 |---|---|---|
 | `SpeechRecognizer` 공개 API, main thread 사용 | `CONFIRMED` | 공식 문서 |
+| Android 11+ 에서 `<queries>` 선언 필수 | `CONFIRMED` | 공식 문서: "For apps targeting Android 11 (API level 30) interaction with a speech recognition service requires `<queries>` element to be added to the manifest file" — `<intent><action android:name="android.speech.RecognitionService" /></intent>`. 누락 시 provider가 보이지 않아 S-2가 `EXTRA_AUDIO_SOURCE`와 무관한 이유로 실패한다 |
+| `createSpeechRecognizer(Context, ComponentName)` | `CONFIRMED` (API 8) | 시스템 기본 대신 특정 recognition service를 지정. §8-1의 자기 stub 문제 회피에 사용 |
 | "연속 인식용이 아니다" | `CONFIRMED` | 공식 문서: 구현체가 원격 서버로 스트리밍할 수 있어 continuous recognition 용도가 아님. → Wake 이후 구간만 사용 |
 | `createOnDeviceSpeechRecognizer()` | `CONFIRMED` (API 31) | |
 | `isOnDeviceRecognitionAvailable()` | `CONFIRMED` (API 31) | |

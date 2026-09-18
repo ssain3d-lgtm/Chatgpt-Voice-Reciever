@@ -1,0 +1,17 @@
+[versions]
+# Android Gradle Plugin. Requires Gradle 8.9+ (wrapper pins 8.14.3).
+agp = "8.7.3"
+kotlin = "2.0.21"
+# Picovoice Porcupine, Android SDK. Maven Central: ai.picovoice:porcupine-android
+porcupine = "3.0.2"
+junit = "4.13.2"
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+
+[libraries]
+porcupine-android = { module = "ai.picovoice:porcupine-android", version.ref = "porcupine" }
+kotlin-test-junit = { module = "org.jetbrains.kotlin:kotlin-test-junit", version.ref = "kotlin" }
+junit = { module = "junit:junit", version.ref = "junit" }

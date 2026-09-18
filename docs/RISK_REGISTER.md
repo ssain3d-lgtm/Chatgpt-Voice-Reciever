@@ -47,7 +47,7 @@ Status: `OPEN` (검증 전) / `MITIGATED` / `ACCEPTED` (platform limitation으�
 | Impact | High — 사용자가 앱을 끔 |
 | Severity | **Critical** |
 | Evidence | DSP 경로 없음(`AlwaysOnHotwordDetector` @SystemApi, `CONFIRMED`). 실제 소모량 미측정 |
-| Mitigation | 16 kHz mono, Porcupine 경량 추론, VAD는 Wake 이후에만 활성(초기 정책), v0.2 대기 스케줄 |
+| Mitigation | 16 kHz mono, Porcupine 경량 추론, Endpoint VAD는 Wake 이후에만 활성([ARCHITECTURE.md](ARCHITECTURE.md) §4.5 / ADR-013), v0.2 대기 스케줄 |
 | Fallback | 대기 시간대 제한 옵션 |
 | Validation | GV-06 (12h 배터리) |
 | Status | `OPEN` — 목표 수치는 실측 후 설정. 확정 수치 기재 금지 |
