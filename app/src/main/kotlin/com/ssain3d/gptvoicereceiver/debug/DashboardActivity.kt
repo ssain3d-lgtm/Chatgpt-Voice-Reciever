@@ -85,6 +85,7 @@ class DashboardActivity : Activity() {
             heading("Spikes")
             button("S-1  Assistant / Wake") { startActivity(Intent(this@DashboardActivity, S1Activity::class.java)) }
             button("S-2  Audio → STT") { startActivity(Intent(this@DashboardActivity, S2Activity::class.java)) }
+            button("S-3  ChatGPT Bridge") { startActivity(Intent(this@DashboardActivity, S3Activity::class.java)) }
             button("Logs") { startActivity(Intent(this@DashboardActivity, LogActivity::class.java)) }
 
             heading("Permissions & settings")

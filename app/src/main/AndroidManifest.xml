@@ -52,6 +52,10 @@
             android:exported="false"
             android:label="S-2 Audio to STT" />
         <activity
+            android:name=".debug.S3Activity"
+            android:exported="false"
+            android:label="S-3 ChatGPT Bridge" />
+        <activity
             android:name=".debug.LogActivity"
             android:exported="false"
             android:label="Logs" />
