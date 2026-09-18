@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- SECURITY_PRIVACY.md §11 -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Porcupine AccessKey validation may require network (OPEN_QUESTION, §2). -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!--
+      QUERY_ALL_PACKAGES is deliberately NOT requested (SECURITY_PRIVACY.md §11).
+      Only the one package we bridge to is declared visible.
+    -->
+    <queries>
+        <package android:name="com.openai.chatgpt" />
+        <intent>
+            <action android:name="android.intent.action.SEND" />
+            <data android:mimeType="text/plain" />
+        </intent>
+    </queries>
+
+    <application
+        android:name=".SpikeApplication"
+        android:allowBackup="false"
+        android:icon="@android:drawable/ic_btn_speak_now"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@android:style/Theme.DeviceDefault.DayNight">
+
+        <!-- ============================ Debug dashboard ============================ -->
+
+        <activity
+            android:name=".debug.DashboardActivity"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:launchMode="singleTop">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".debug.S1Activity"
+            android:exported="false"
+            android:label="S-1 Assistant / Wake" />
+        <activity
+            android:name=".debug.LogActivity"
+            android:exported="false"
+            android:label="Logs" />
+
+        <!-- ======================= S-1: assistant components ======================= -->
+
+        <!--
+          ANDROID_CONSTRAINTS.md §1. BIND_VOICE_INTERACTION means only the system may
+          bind. ADR-014: single process — no android:process here.
+        -->
+        <service
+            android:name=".assistant.GptVoiceInteractionService"
+            android:exported="true"
+            android:permission="android.permission.BIND_VOICE_INTERACTION">
+            <intent-filter>
+                <action android:name="android.service.voice.VoiceInteractionService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.voice_interaction"
+                android:resource="@xml/voice_interaction_service" />
+        </service>
+
+        <service
+            android:name=".assistant.GptVoiceInteractionSessionService"
+            android:exported="true"
+            android:permission="android.permission.BIND_VOICE_INTERACTION" />
+
+        <!--
+          Registration stub only. Without a valid RecognitionService component the app
+          does not appear in the digital-assistant picker at all
+          (ANDROID_CONSTRAINTS.md §1, AOSP Voice Interaction guide). It performs no
+          recognition — see the class doc.
+        -->
+        <service
+            android:name=".assistant.GptRecognitionService"
+            android:exported="true"
+            android:permission="android.permission.BIND_SPEECH_RECOGNIZER">
+            <intent-filter>
+                <action android:name="android.speech.RecognitionService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.speech"
+                android:resource="@xml/recognition_service" />
+        </service>
+
+        <!--
+          INV-1: the only component in this app that opens an AudioRecord.
+          foregroundServiceType=microphone is mandatory from Android 14
+          (ANDROID_CONSTRAINTS.md §4).
+        -->
+        <service
+            android:name=".audio.AudioCaptureService"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
+
+        <!-- ========================= S-3: ChatGPT bridge ========================== -->
+
+        <service
+            android:name=".chatgptbridge.ChatGptAccessibilityService"
+            android:exported="true"
+            android:label="AURA Spike — ChatGPT bridge"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/chatgpt_accessibility_service" />
+        </service>
+
+    </application>
+</manifest>

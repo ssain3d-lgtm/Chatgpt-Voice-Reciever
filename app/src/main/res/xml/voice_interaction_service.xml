@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ANDROID_CONSTRAINTS.md §1: the assistant only appears in the picker when
+  `recognitionService` points at a real RecognitionService component — hence the
+  GptRecognitionService stub.
+
+  `supportsLaunchVoiceAssistFromKeyguard` is what lets the session UI be shown over
+  the lock screen (§2). Whether One UI honours it is DEVICE_TEST_REQUIRED (GV-04).
+-->
+<voice-interaction-service
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:recognitionService="com.ssain3d.gptvoicereceiver.assistant.GptRecognitionService"
+    android:sessionService="com.ssain3d.gptvoicereceiver.assistant.GptVoiceInteractionSessionService"
+    android:supportsAssist="true"
+    android:supportsLaunchVoiceAssistFromKeyguard="true"
+    android:supportsLocalInteraction="false" />

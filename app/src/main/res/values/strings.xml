@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">AURA Spike</string>
+    <string name="accessibility_service_description">Galaxy Technical Spike S-3. Reads only the official ChatGPT app (com.openai.chatgpt) to locate the message composer and the Send button, and only when you press a button in this app. No other app is read, and no conversation content is stored.</string>
+    <string name="fgs_channel_name">Wake word capture</string>
+    <string name="fgs_notification_title">AURA Spike — microphone open</string>
+    <string name="fgs_notification_text">Capturing audio locally for wake-word detection.</string>
+</resources>
