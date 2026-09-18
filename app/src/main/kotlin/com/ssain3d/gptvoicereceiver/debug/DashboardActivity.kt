@@ -74,6 +74,8 @@ class DashboardActivity : Activity() {
                 capture.liveness,
             )
 
+            AudioCaptureService.lastStartFailure?.let { note("⚠ $it") }
+
             status.porcupineIssue?.let {
                 note("⚠ $it")
                 note("Wake-word detection (GV-02) is unavailable, but screen-off microphone liveness (GV-03) can still be measured — see the S-1 screen.")

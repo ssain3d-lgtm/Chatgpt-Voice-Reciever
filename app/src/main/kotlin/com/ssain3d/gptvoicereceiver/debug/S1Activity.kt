@@ -134,6 +134,7 @@ class S1Activity : Activity() {
             appendLine("VIS bound       ${AssistantBridge.isAssistantBound}")
             appendLine("last session    ${AssistantBridge.lastSessionEvent}")
             s.lastError?.let { appendLine("last error      $it") }
+            AudioCaptureService.lastStartFailure?.let { appendLine("\nSTART FAILED    $it") }
         }
     }
 }

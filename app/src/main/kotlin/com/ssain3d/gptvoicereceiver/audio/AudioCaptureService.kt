@@ -88,7 +88,21 @@ class AudioCaptureService : Service() {
         }
 
         val reason = intent?.getStringExtra(EXTRA_REASON) ?: "unspecified"
-        startForegroundSafely()
+
+        // If we could not become a foreground service, do NOT open the microphone.
+        //
+        // Android 14+ refuses to create a microphone-type FGS unless the while-in-use
+        // conditions are met. Capturing anyway would produce audio without the
+        // guarantees the entire S-1 hypothesis rests on: the S-1 screen would show a
+        // healthy LIVE stream that is certain to die the moment the screen goes off,
+        // and GV-03 would be measured against a service that was never eligible in
+        // the first place. Failing loudly here is the only reading that is not
+        // misleading.
+        if (!startForegroundSafely()) {
+            stopSelf()
+            return START_NOT_STICKY
+        }
+
         startCapture(reason)
         return START_STICKY
     }
@@ -114,7 +128,8 @@ class AudioCaptureService : Service() {
         )
     }
 
-    private fun startForegroundSafely() {
+    /** @return false when the foreground service could not be created. */
+    private fun startForegroundSafely(): Boolean {
         val content = PendingIntent.getActivity(
             this, 0,
             Intent(this, DashboardActivity::class.java),
@@ -135,12 +150,25 @@ class AudioCaptureService : Service() {
                 ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE,
             )
         }
+
+        val failure = result.exceptionOrNull()
+        lastStartFailure = failure?.let {
+            "startForeground(microphone) failed: $it — the microphone was NOT opened. " +
+                "Usually the app is not the current digital assistant, so the " +
+                "while-in-use exception for a VoiceInteractionService does not apply."
+        }
+
         Spike.log.log(
             SpikeId.S1, "AudioCaptureService", "startForeground",
             if (result.isSuccess) EventResult.OK else EventResult.FAIL,
-            error = result.exceptionOrNull()?.toString(),
-            detail = "type=microphone",
+            error = failure?.toString(),
+            detail = if (result.isSuccess) {
+                "type=microphone"
+            } else {
+                "type=microphone — aborting, capture will NOT start"
+            },
         )
+        return result.isSuccess
     }
 
     // --------------------------------------------------------------------- capture
@@ -463,6 +491,14 @@ class AudioCaptureService : Service() {
 
         @Volatile
         private var instance: AudioCaptureService? = null
+
+        /**
+         * Survives the service being torn down, so the dashboard can still explain
+         * why capture is not running after a failed start.
+         */
+        @Volatile
+        var lastStartFailure: String? = null
+            private set
 
         fun start(context: Context, reason: String) {
             val intent = Intent(context, AudioCaptureService::class.java)
